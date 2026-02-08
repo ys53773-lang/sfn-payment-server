@@ -1,0 +1,66 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const crypto = require('crypto');
+
+const app = express();
+app.use(cors());
+app.use(bodyParser.json());
+
+// 🔥 TEST CREDENTIALS
+const MERCHANT_ID = "PGTESTPAYUAT";
+const SALT_KEY = "099eb0cd-02cf-4e2a-8aca-3e6c6aff0399";
+const SALT_INDEX = 1;
+const API_ENDPOINT = "/pg/v1/pay";
+
+app.get('/', (req, res) => {
+    res.send("SFN Server is Live! ✅");
+});
+
+app.post('/pay', (req, res) => {
+    try {
+        const { amount, mobile } = req.body;
+        
+        // Transaction ID
+        const transactionId = "SFN_" + Date.now();
+
+        // Payload
+        const payload = {
+            merchantId: MERCHANT_ID,
+            merchantTransactionId: transactionId,
+            merchantUserId: "User_" + Date.now(),
+            amount: amount * 100, // Convert to Paise
+            redirectUrl: "https://www.google.com",
+            redirectMode: "REDIRECT",
+            callbackUrl: "https://webhook.site/callback-url",
+            mobileNumber: mobile || "9999999999",
+            paymentInstrument: {
+                type: "PAY_PAGE"
+            }
+        };
+
+        // Base64 Encode
+        const bufferObj = Buffer.from(JSON.stringify(payload), "utf8");
+        const base64EncodedPayload = bufferObj.toString("base64");
+
+        // Checksum (SHA256)
+        const stringToHash = base64EncodedPayload + API_ENDPOINT + SALT_KEY;
+        const sha256 = crypto.createHash('sha256').update(stringToHash).digest('hex');
+        const checksum = sha256 + "###" + SALT_INDEX;
+
+        res.json({
+            success: true,
+            base64Body: base64EncodedPayload,
+            checksum: checksum,
+            apiEndpoint: API_ENDPOINT
+        });
+
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
